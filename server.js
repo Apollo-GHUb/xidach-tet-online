@@ -75,7 +75,6 @@ io.on('connection', (socket) => {
     socket.on('place_bet', (amount) => {
         let p = gameState.players[socket.id];
         let betVal = parseInt(amount);
-        // ĐIỀU CHỈNH: Giới hạn cược lớn hơn 0 và tối đa 1000k (1 triệu)
         if (p && betVal > 0 && betVal <= 1000) {
             p.bet = betVal;
             p.status = 'ready';
@@ -114,7 +113,10 @@ io.on('connection', (socket) => {
 
     socket.on('hit', () => {
         if (socket.id !== gameState.currentTurnId) return;
-        if (socket.id === gameState.dealerId && (gameState.isRevealed || gameState.dealerRevealed)) return;
+        
+        // ĐIỀU CHỈNH LOGIC: Cái CHỈ bị cấm rút nếu đã bấm "XÉT TOÀN BÀN" (isRevealed = true).
+        // Dù đã xét 1 vài nhà con (dealerRevealed = true), cái vẫn được bốc tiếp!
+        if (socket.id === gameState.dealerId && gameState.isRevealed) return;
 
         let p = gameState.players[socket.id];
         if (p && p.status === 'playing' && p.hand.length < 5) {
@@ -136,41 +138,32 @@ io.on('connection', (socket) => {
         }
     });
 
-    // LOGIC XÉT BÀI ĐÃ ĐƯỢC CHỈNH SỬA (CHUẨN HÒA)
     socket.on('check_player', (playerId) => {
         if (socket.id !== gameState.dealerId || gameState.currentTurnId !== gameState.dealerId) return;
         
         let dealer = gameState.players[gameState.dealerId];
         let player = gameState.players[playerId];
         
-        if (!player || player.status !== 'stand' || player.status === 'checked') return;
+        if (!player || (player.status !== 'stand' && player.status !== 'bust') || player.status === 'checked') return;
 
+        // Ép ngửa bài nhà cái
         gameState.dealerRevealed = true;
 
         let dEval = evaluateHand(dealer.hand);
         let pEval = evaluateHand(player.hand);
 
-        let result = ''; // 'dealer', 'player', hoặc 'tie'
-
-        // So sánh phân cấp bài (Xì bàng > Xì dách > Ngũ linh > Đủ tẩy > Quắc)
-        if (dEval.rank > pEval.rank) {
-            result = 'dealer';
-        } else if (dEval.rank < pEval.rank) {
-            result = 'player';
-        } else {
-            // NẾU CÙNG PHÂN CẤP BÀI
-            if (dEval.rank === 1) {
-                // ĐIỀU CHỈNH: Cả hai cùng Quắc -> HÒA LÀNG (Không ai mất tiền)
-                result = 'tie';
-            } else {
-                // ĐIỀU CHỈNH: Cùng loại bài, so sánh điểm. Nếu bằng điểm -> HÒA
+        let result = ''; 
+        if (dEval.rank > pEval.rank) result = 'dealer';
+        else if (dEval.rank < pEval.rank) result = 'player';
+        else {
+            if (dEval.rank === 1) result = 'tie'; 
+            else {
                 if (dEval.score > pEval.score) result = 'dealer';
                 else if (dEval.score < pEval.score) result = 'player';
                 else result = 'tie'; 
             }
         }
 
-        // TÍNH TIỀN VÀ HIỂN THỊ DỰA TRÊN KẾT QUẢ
         if (result === 'dealer') {
             dealer.profit += player.bet;
             player.profit -= player.bet;
@@ -182,7 +175,6 @@ io.on('connection', (socket) => {
             player.resultMsg = `+${player.bet}k`;
             dealer.resultMsg = `-${player.bet}k`;
         } else if (result === 'tie') {
-            // Trường hợp Hòa: Giữ nguyên tiền, báo chữ HÒA màu vàng
             player.resultMsg = `HÒA`;
             dealer.resultMsg = `HÒA`;
         }
@@ -190,7 +182,6 @@ io.on('connection', (socket) => {
         player.status = 'checked'; 
         io.emit('update_state', gameState);
 
-        // Tự động xóa text bay lên sau 2.5 giây
         setTimeout(() => {
             if (gameState.players[playerId]) gameState.players[playerId].resultMsg = '';
             if (gameState.dealerId && gameState.players[gameState.dealerId]) {
