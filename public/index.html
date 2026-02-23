@@ -36,10 +36,10 @@
             display: flex; flex-direction: column; padding: 20px; position: relative;
         }
         
-        /* BỘ BÀI GIỮA BÀN */
+        /* BỘ BÀI Ở GIỮA BÀN */
         #deck-center {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 1; display: none; /* Sẽ hiện lên khi ván bắt đầu */
+            z-index: 50; display: none; 
         }
         .deck-card-visual {
             position: absolute; width: 60px; height: 85px; 
@@ -73,19 +73,15 @@
             width: 60px; height: 85px; background: white; border-radius: 6px; display: flex; flex-direction: column; 
             justify-content: center; align-items: center; font-size: 20px; font-weight: bold; color: black; 
             box-shadow: -3px 2px 5px rgba(0,0,0,0.4); border: 1px solid #ccc;
-            margin-left: -35px; transition: 0.2s; position: relative;
+            margin-left: -35px; position: relative;
         }
-        .card:hover { transform: translateY(-10px); z-index: 10; } 
+        /* Hiệu ứng mượt mà khi di chuột và khi bài bay xong */
+        .card:hover:not(.animate-from-deck) { transform: translateY(-10px); z-index: 10; transition: transform 0.2s; } 
         .card.red { color: #d32f2f; }
         .card.hidden { background: repeating-linear-gradient(45deg, #1a237e, #1a237e 5px, #283593 5px, #283593 10px); color: transparent; border: 2px solid #fff; }
         .card.squeezing-card { background: radial-gradient(circle, #8b0000, #3e0000); color: #ffd700; font-size: 0.9rem; cursor: pointer; border: 2px dashed #ffd700; animation: pulseAndShake 1.2s infinite; }
         
-        /* ANIMATION RÚT BÀI TỪ GIỮA BÀN */
-        .card.deal-anim { animation: flyFromDeck 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
-        @keyframes flyFromDeck {
-            from { opacity: 0; transform: scale(0.2) translateY(-50px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
+        @keyframes pulseAndShake { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
         .bet-area { position: absolute; bottom: -25px; right: -25px; display: flex; flex-direction: column; align-items: center; z-index: 2;}
         .chips-stack { display: flex; flex-direction: column; align-items: center; animation: dropChip 0.4s ease-out; }
@@ -165,6 +161,7 @@
         let isChatOpen = false;
         let isDealingMode = false;
         let lastStarted = false;
+        window.newlyDrawn = {}; // Biến theo dõi những lá bài vừa mới được bốc
 
         function joinGame() {
             const name = document.getElementById('username').value.trim();
@@ -245,11 +242,64 @@
             socket.emit('deal_cards', numDecks);
         }
 
+        // HÀM XỬ LÝ ANIMATION BÀI BAY TỪ BỘ NỌC ĐẾN TAY NGƯỜI CHƠI
+        function executeFlyAnimations() {
+            let deckEl = document.getElementById('deck-center');
+            if (!deckEl || deckEl.style.display === 'none') return;
+            
+            let deckRect = deckEl.getBoundingClientRect();
+            let deckX = deckRect.left + deckRect.width / 2;
+            let deckY = deckRect.top + deckRect.height / 2;
+
+            document.querySelectorAll('.animate-from-deck').forEach(card => {
+                let cardRect = card.getBoundingClientRect();
+                let cardX = cardRect.left + cardRect.width / 2;
+                let cardY = cardRect.top + cardRect.height / 2;
+
+                // Tính toán khoảng cách (Vector) từ bộ bài đến vị trí thực tế của lá bài
+                let deltaX = deckX - cardX;
+                let deltaY = deckY - cardY;
+                
+                let delay = parseFloat(card.getAttribute('data-delay') || 0) * 1000;
+
+                // Set trạng thái ban đầu: Bài nằm ở giữa nọc, tàng hình và thu nhỏ
+                card.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(0.2) rotate(180deg)`;
+                card.style.opacity = '0';
+                card.style.transition = 'none';
+
+                // Ép trình duyệt nhận diện trạng thái vừa set trước khi chạy Animation
+                void card.offsetWidth;
+
+                // Bắt đầu bay
+                setTimeout(() => {
+                    card.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-out';
+                    card.style.transform = 'translate(0, 0) scale(1) rotate(0deg)';
+                    card.style.opacity = '1';
+                }, delay + 20); 
+
+                card.classList.remove('animate-from-deck'); // Chỉ bay 1 lần
+            });
+        }
+
         socket.on('update_state', (state) => {
             myId = socket.id;
-            window.lastGameState = state;
             
-            // Hiển thị nọc bài ở giữa bàn khi đang ván đấu
+            // LOGIC KIỂM TRA BÀI MỚI RÚT (So sánh với state cũ)
+            window.newlyDrawn = {};
+            if (window.lastGameState && state.isStarted && !isDealingMode) {
+                for (let id in state.players) {
+                    let oldHand = window.lastGameState.players[id] ? window.lastGameState.players[id].hand : [];
+                    let newHand = state.players[id].hand;
+                    if (newHand.length > oldHand.length) {
+                        window.newlyDrawn[id] = [];
+                        for(let i = oldHand.length; i < newHand.length; i++) {
+                            window.newlyDrawn[id].push(i); // Đánh dấu các index bài mới bốc
+                        }
+                    }
+                }
+            }
+            
+            window.lastGameState = state;
             document.getElementById('deck-center').style.display = state.isStarted ? 'block' : 'none';
             
             if (state.isStarted && !lastStarted) {
@@ -302,17 +352,20 @@
                 let numP = playerOrderArray.length;
 
                 dealer.hand.forEach((c, i) => {
-                    // Logic tính deal animation: 2 lá đầu delay dần. Lá thứ 3 trở đi bay ra lập tức khi bấm rút
-                    let animDelay = (isDealingMode && i < 2) ? ((i * numP) + p_idx) * 0.15 : 0;
-                    let animStyle = animDelay > 0 ? `animation-delay: ${animDelay}s; opacity: 0;` : '';
-                    let animClass = (isDealingMode && i < 2) || i >= 2 ? 'deal-anim' : '';
+                    let isJustDrawn = window.newlyDrawn[state.dealerId] && window.newlyDrawn[state.dealerId].includes(i);
+                    let isDealing = (isDealingMode && i < 2);
+                    let animDelay = isDealing ? ((i * numP) + p_idx) * 0.15 : 0;
+                    
+                    let animClass = (isDealing || isJustDrawn) ? 'animate-from-deck' : '';
+                    let delayAttr = animDelay > 0 ? `data-delay="${animDelay}"` : '';
+                    let animStyle = (isDealing || isJustDrawn) ? `opacity: 0;` : '';
 
                     if (isDealer) {
-                        if (myRevealedIndexes.has(i)) dHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}">${c.v}${c.s}</div>`;
-                        else dHtml += `<div class="card squeezing-card ${animClass}" style="${animStyle}" onclick="revealMyCard(${i})">NẶN</div>`;
+                        if (myRevealedIndexes.has(i)) dHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
+                        else dHtml += `<div class="card squeezing-card ${animClass}" style="${animStyle}" ${delayAttr} onclick="revealMyCard(${i})">NẶN</div>`;
                     } else {
-                        if (state.dealerRevealed || state.isRevealed) dHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}">${c.v}${c.s}</div>`;
-                        else dHtml += `<div class="card hidden ${animClass}" style="${animStyle}"></div>`;
+                        if (state.dealerRevealed || state.isRevealed) dHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
+                        else dHtml += `<div class="card hidden ${animClass}" style="${animStyle}" ${delayAttr}></div>`;
                     }
                 });
                 
@@ -348,7 +401,6 @@
                 
                 pHtml += getChipsHtml(p.bet);
                 
-                // ĐIỀU CHỈNH: Nhà cái có quyền bấm Xét Bài với tụ đã Dằn hoặc tụ bị Quắc (tự động hiện dằn)
                 if (isDealer && state.currentTurnId === state.dealerId && (p.status === 'stand' || p.status === 'bust') && p.status !== 'checked') {
                     pHtml += `<button class="btn danger small" style="position:absolute; top:-15px; z-index:10;" onclick="socket.emit('check_player', '${id}')">XÉT BÀI</button>`;
                 }
@@ -356,17 +408,21 @@
                 pHtml += `<div class="cards">`;
                 
                 p.hand.forEach((c, i) => {
-                    let animDelay = (isDealingMode && i < 2 && p.bet > 0) ? ((i * numP) + p_idx) * 0.15 : 0;
-                    let animStyle = animDelay > 0 ? `animation-delay: ${animDelay}s; opacity: 0;` : '';
-                    let animClass = (isDealingMode && i < 2) || i >= 2 ? 'deal-anim' : '';
+                    let isJustDrawn = window.newlyDrawn[id] && window.newlyDrawn[id].includes(i);
+                    let isDealing = (isDealingMode && i < 2 && p.bet > 0);
+                    let animDelay = isDealing ? ((i * numP) + p_idx) * 0.15 : 0;
+                    
+                    let animClass = (isDealing || isJustDrawn) ? 'animate-from-deck' : '';
+                    let delayAttr = animDelay > 0 ? `data-delay="${animDelay}"` : '';
+                    let animStyle = (isDealing || isJustDrawn) ? `opacity: 0;` : '';
 
                     if (isMe && !isFullyRevealed) {
-                        if (myRevealedIndexes.has(i)) pHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}">${c.v}${c.s}</div>`;
-                        else pHtml += `<div class="card squeezing-card ${animClass}" style="${animStyle}" onclick="revealMyCard(${i})">NẶN</div>`;
+                        if (myRevealedIndexes.has(i)) pHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
+                        else pHtml += `<div class="card squeezing-card ${animClass}" style="${animStyle}" ${delayAttr} onclick="revealMyCard(${i})">NẶN</div>`;
                     } else if (isFullyRevealed || (isMe && isFullyRevealed)) {
-                        pHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}">${c.v}${c.s}</div>`;
+                        pHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
                     } else {
-                        pHtml += `<div class="card hidden ${animClass}" style="${animStyle}"></div>`;
+                        pHtml += `<div class="card hidden ${animClass}" style="${animStyle}" ${delayAttr}></div>`;
                     }
                 });
                 
@@ -383,8 +439,6 @@
             let isMyTurn = (state.currentTurnId === myId);
             let isMyCardsFullyRevealed = me && me.hand && (myRevealedIndexes.size >= me.hand.length);
 
-            // Logic khóa nút của nhà cái:
-            // Chỉ khóa CÁI RÚT THÊM khi đã bấm "Xét Toàn Bàn" (isRevealed = true) HOẶC nếu đã có 5 lá/đã quắc
             let dScore = me && me.hand ? getScore(me.hand) : 0;
             let blockDealerHit = false;
             if (state.isRevealed || dScore >= 21 || (me && me.hand.length >= 5)) blockDealerHit = true;
@@ -434,6 +488,9 @@
                     controls.innerHTML = `<h3 style="color:#b8860b;">Chờ nhà cái thao tác...</h3>`;
                 }
             }
+
+            // SAU KHI VẼ XONG HTML, GỌI HÀM KÍCH HOẠT ANIMATION BÀI BAY
+            executeFlyAnimations();
         }
     </script>
 </body>
