@@ -1,512 +1,270 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Xì Dách Multiplayer - Sòng Bài Real</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xì Dách Pro - Đấu Trí & Lừa Gạt</title>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family: "Segoe UI", Tahoma, sans-serif;
-        background: radial-gradient(circle at center, #0a3d11 0%, #000000 100%);
-        color: white;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 20px;
-      }
-      h1 {
-        color: #ffd700;
-        text-shadow: 0 2px 10px rgba(255, 215, 0, 0.5);
-        margin-bottom: 20px;
-      }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: radial-gradient(circle at center, #0a3d11 0%, #000000 100%); color: white; height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow-x: hidden;}
+        h1 { color: #ffd700; text-shadow: 0 2px 10px rgba(255, 215, 0, 0.5); margin-bottom: 15px;}
+        
+        #login-screen { display: flex; flex-direction: column; gap: 15px; margin-top: 100px; background: rgba(0,0,0,0.6); padding: 40px; border-radius: 15px; border: 1px solid #b8860b; }
+        input { padding: 12px; font-size: 1.1rem; border-radius: 8px; border: none; text-align: center; }
+        
+        .btn { padding: 10px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; text-transform: uppercase; transition: 0.2s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+        .btn.primary { background: #ffd700; color: #000; }
+        .btn.primary:hover:not(:disabled) { box-shadow: 0 0 15px #ffd700; }
+        .btn.success { background: #4caf50; color: white; }
+        .btn.danger { background: #f44336; color: white; }
+        .btn.small { padding: 5px 10px; font-size: 0.8rem; margin-top: 5px; }
+        
+        /* Layout mới chứa Sòng bài và Chat */
+        #game-screen { display: none; width: 100%; max-width: 1300px; gap: 20px; flex-direction: row; height: calc(100vh - 80px); }
+        #board-section { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding-right: 10px;}
+        
+        .table-area { background: rgba(0,0,0,0.4); border: 2px solid #b8860b; border-radius: 40px; padding: 25px; margin-bottom: 20px; box-shadow: inset 0 0 50px rgba(0,0,0,0.8); }
+        
+        /* Vòng sáng tới lượt rút bài */
+        .player-zone { text-align: center; margin-bottom: 25px; padding: 15px; border-radius: 15px; transition: 0.3s; position: relative; border: 2px solid transparent;}
+        .player-zone.is-me { background: rgba(255, 255, 255, 0.1); border: 2px dashed #666; }
+        .player-zone.active-turn { box-shadow: 0 0 25px #4caf50; border: 2px solid #4caf50 !important; background: rgba(76, 175, 80, 0.1); }
+        .player-zone.is-dealer { border-bottom: 2px solid #ffd700; padding-bottom: 20px;}
+        
+        .zone-header { margin-bottom: 10px; font-size: 1.1rem; font-weight: bold;}
+        .money-badge { background: rgba(0,0,0,0.8); padding: 3px 8px; border-radius: 5px; font-size: 1rem; border: 1px solid; font-weight: bold; }
+        .status-badge { background: #333; padding: 3px 10px; border-radius: 10px; font-size: 0.9rem; color: #ffd700; margin-left: 5px;}
+        
+        .result-anim { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 2rem; font-weight: 900; color: #ffd700; text-shadow: 0 0 10px #000; animation: floatUp 2s forwards; z-index: 10; pointer-events: none;}
+        @keyframes floatUp { 0% { opacity: 0; top: 20px; } 20% { opacity: 1; top: -10px; } 80% { opacity: 1; top: -30px; } 100% { opacity: 0; top: -50px; } }
 
-      #login-screen {
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-        margin-top: 100px;
-        background: rgba(0, 0, 0, 0.6);
-        padding: 40px;
-        border-radius: 15px;
-        border: 1px solid #b8860b;
-      }
-      input {
-        padding: 12px;
-        font-size: 1.1rem;
-        border-radius: 8px;
-        border: none;
-        text-align: center;
-      }
-
-      .btn {
-        padding: 10px 20px;
-        font-size: 1rem;
-        font-weight: bold;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        text-transform: uppercase;
-        transition: 0.2s;
-      }
-      .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        filter: grayscale(1);
-      }
-      .btn.primary {
-        background: #ffd700;
-        color: #000;
-      }
-      .btn.primary:hover:not(:disabled) {
-        box-shadow: 0 0 15px #ffd700;
-      }
-      .btn.success {
-        background: #4caf50;
-        color: white;
-      }
-      .btn.danger {
-        background: #f44336;
-        color: white;
-      }
-      .btn.small {
-        padding: 5px 10px;
-        font-size: 0.8rem;
-        margin-top: 5px;
-      }
-
-      #game-screen {
-        display: none;
-        width: 100%;
-        max-width: 1000px;
-      }
-      .table-area {
-        background: rgba(0, 0, 0, 0.4);
-        border: 2px solid #b8860b;
-        border-radius: 50px;
-        padding: 30px;
-        margin-bottom: 20px;
-        box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
-      }
-
-      .player-zone {
-        text-align: center;
-        margin-bottom: 30px;
-        padding: 15px;
-        border-radius: 15px;
-        transition: 0.3s;
-        position: relative;
-      }
-      .player-zone.is-me {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px dashed #ffd700;
-      }
-      .player-zone.is-dealer {
-        border-bottom: 2px solid #ffd700;
-        padding-bottom: 20px;
-      }
-
-      .zone-header {
-        margin-bottom: 10px;
-        font-size: 1.1rem;
-        font-weight: bold;
-      }
-      .money-badge {
-        background: rgba(0, 0, 0, 0.8);
-        padding: 3px 8px;
-        border-radius: 5px;
-        font-size: 1rem;
-        border: 1px solid;
-        font-weight: bold;
-      }
-      .status-badge {
-        background: #333;
-        padding: 3px 10px;
-        border-radius: 10px;
-        font-size: 0.9rem;
-        color: #ffd700;
-        margin-left: 5px;
-      }
-
-      .result-anim {
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 2rem;
-        font-weight: 900;
-        color: #ffd700;
-        text-shadow: 0 0 10px #000;
-        animation: floatUp 2s forwards;
-        z-index: 10;
-        pointer-events: none;
-      }
-      @keyframes floatUp {
-        0% {
-          opacity: 0;
-          top: 20px;
-        }
-        20% {
-          opacity: 1;
-          top: -10px;
-        }
-        80% {
-          opacity: 1;
-          top: -30px;
-        }
-        100% {
-          opacity: 0;
-          top: -50px;
-        }
-      }
-
-      .cards {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        min-height: 100px;
-      }
-      .card {
-        width: 70px;
-        height: 100px;
-        background: white;
-        border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        font-size: 24px;
-        font-weight: bold;
-        color: black;
-        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
-        animation: dropIn 0.3s ease-out forwards;
-      }
-      .card.red {
-        color: #d32f2f;
-      }
-      .card.hidden {
-        background: repeating-linear-gradient(
-          45deg,
-          #1a237e,
-          #1a237e 10px,
-          #283593 10px,
-          #283593 20px
-        );
-        color: transparent;
-        border: 2px solid #fff;
-      }
-      .card.squeezing-card {
-        background: radial-gradient(circle, #8b0000 0%, #3e0000 100%);
-        color: #ffd700;
-        font-size: 1.1rem;
-        text-align: center;
-        cursor: pointer;
-        border: 2px dashed #ffd700;
-        animation: pulseAndShake 1.2s infinite;
-      }
-
-      @keyframes dropIn {
-        from {
-          opacity: 0;
-          transform: translateY(-30px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      @keyframes pulseAndShake {
-        0% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.05);
-        }
-        100% {
-          transform: scale(1);
-        }
-      }
-
-      #controls-area {
-        text-align: center;
-        background: rgba(0, 0, 0, 0.6);
-        padding: 20px;
-        border-radius: 15px;
-      }
+        .cards { display: flex; justify-content: center; gap: 10px; min-height: 100px; }
+        .card { width: 70px; height: 100px; background: white; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; color: black; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); animation: dropIn 0.3s ease-out forwards; }
+        .card.red { color: #d32f2f; }
+        .card.hidden { background: repeating-linear-gradient(45deg, #1a237e, #1a237e 10px, #283593 10px, #283593 20px); color: transparent; border: 2px solid #fff; }
+        .card.squeezing-card { background: radial-gradient(circle, #8b0000 0%, #3e0000 100%); color: #ffd700; font-size: 1.1rem; text-align: center; cursor: pointer; border: 2px dashed #ffd700; animation: pulseAndShake 1.2s infinite; }
+        
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseAndShake { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        
+        #controls-area { text-align: center; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 15px; flex-shrink: 0; }
+        
+        /* Giao diện Chat */
+        #chat-section { width: 320px; background: rgba(0,0,0,0.7); border: 2px solid #b8860b; border-radius: 15px; display: flex; flex-direction: column; height: 100%; flex-shrink: 0;}
+        #chat-history { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; font-size: 0.95rem; }
+        .msg { background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; word-wrap: break-word;}
+        .msg strong { color: #ffd700; }
+        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #b8860b; background: rgba(0,0,0,0.5); border-radius: 0 0 15px 15px;}
+        #chat-input-area input { flex: 1; padding: 10px; border-radius: 5px 0 0 5px; font-size: 1rem; }
+        #chat-input-area button { border-radius: 0 5px 5px 0; }
     </style>
-  </head>
-  <body>
+</head>
+<body>
+
     <div id="login-screen">
-      <h1>🧨 XÌ DÁCH TẾT 🧨</h1>
-      <input
-        type="text"
-        id="username"
-        placeholder="Nhập tên của bạn..."
-        autocomplete="off"
-      />
-      <button class="btn primary" onclick="joinGame()">Vào Sòng Bài</button>
+        <h1>🧨 XÌ DÁCH TẾT 🧨</h1>
+        <input type="text" id="username" placeholder="Nhập tên của bạn..." autocomplete="off">
+        <button class="btn primary" onclick="joinGame()">Vào Sòng Bài</button>
     </div>
 
     <div id="game-screen">
-      <h2 style="text-align: center; color: #ffd700; margin-bottom: 10px">
-        Bàn Chơi Chính
-      </h2>
-      <div class="table-area" id="board"></div>
-      <div id="controls-area"></div>
+        <div id="board-section">
+            <h2 style="text-align: center; color: #ffd700; margin-bottom: 10px;">Sòng Bài Chính</h2>
+            <div class="table-area" id="board"></div>
+            <div id="controls-area"></div>
+        </div>
+
+        <div id="chat-section">
+            <h3 style="text-align: center; color: #ffd700; padding: 10px; border-bottom: 1px solid #b8860b;">Chat Room 💬</h3>
+            <div id="chat-history"></div>
+            <div id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Khích tướng..." onkeypress="if(event.key==='Enter') sendChat()">
+                <button class="btn success" onclick="sendChat()">Gửi</button>
+            </div>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-      const socket = io();
-      let myId = null;
-      let myRevealedIndexes = new Set([0, 1]);
+        const socket = io();
+        let myId = null;
+        let myRevealedIndexes = new Set([0, 1]); 
 
-      function joinGame() {
-        const name = document.getElementById("username").value.trim();
-        if (name) {
-          socket.emit("join", name);
-          document.getElementById("login-screen").style.display = "none";
-          document.getElementById("game-screen").style.display = "block";
-        }
-      }
-
-      function getScore(hand) {
-        let score = 0,
-          aces = 0;
-        for (let c of hand) {
-          if (["J", "Q", "K"].includes(c.v)) score += 10;
-          else if (c.v === "A") {
-            score += 11;
-            aces++;
-          } else score += parseInt(c.v);
-        }
-        while (score > 21 && aces > 0) {
-          score -= 10;
-          aces--;
-        }
-        return score;
-      }
-
-      function revealMyCard(index) {
-        myRevealedIndexes.add(index);
-        renderBoard(window.lastGameState);
-      }
-
-      socket.on("update_state", (state) => {
-        myId = socket.id;
-        window.lastGameState = state;
-        if (!state.isStarted) myRevealedIndexes = new Set([0, 1]);
-        renderBoard(state);
-      });
-
-      function renderBoard(state) {
-        const board = document.getElementById("board");
-        const controls = document.getElementById("controls-area");
-        board.innerHTML = "";
-        controls.innerHTML = "";
-
-        let me = state.players[myId];
-        if (!me) return;
-
-        const isDealer = myId === state.dealerId;
-        let dealer = state.players[state.dealerId];
-        let dealerCanCheck = false;
-
-        if (dealer && dealer.hand.length > 0) {
-          let dScore = getScore(dealer.hand);
-          let hasXiDach = dealer.hand.length === 2 && dScore >= 21;
-          dealerCanCheck = dScore >= 15 || hasXiDach;
-        }
-
-        // --- 1. RENDER BÀI NHÀ CÁI ---
-        if (dealer) {
-          let dHtml = `<div class="player-zone is-dealer ${
-            isDealer ? "is-me" : ""
-          }">`;
-          let dScoreDisplay = "?";
-          let visibleHand = [];
-
-          if (isDealer) {
-            visibleHand = dealer.hand.filter((_, i) =>
-              myRevealedIndexes.has(i)
-            );
-            dScoreDisplay = getScore(visibleHand);
-          } else if (state.isRevealed) {
-            dScoreDisplay = getScore(dealer.hand);
-          }
-
-          // Xử lý màu sắc hiển thị tiền Lời/Lỗ
-          let dProfitStr =
-            dealer.profit > 0 ? `+${dealer.profit}k` : `${dealer.profit}k`;
-          let dColor =
-            dealer.profit > 0
-              ? "#4caf50"
-              : dealer.profit < 0
-              ? "#f44336"
-              : "#fff";
-
-          dHtml += `<div class="zone-header">👑 NHÀ CÁI: ${dealer.name} <span class="money-badge" style="color:${dColor}; border-color:${dColor};">${dProfitStr}</span></div><div class="cards">`;
-
-          dealer.hand.forEach((c, i) => {
-            if (isDealer) {
-              if (myRevealedIndexes.has(i))
-                dHtml += `<div class="card ${
-                  c.s === "♥" || c.s === "♦" ? "red" : ""
-                }">${c.v}${c.s}</div>`;
-              else
-                dHtml += `<div class="card squeezing-card" onclick="revealMyCard(${i})">NẶN</div>`;
-            } else {
-              if (state.isRevealed)
-                dHtml += `<div class="card ${
-                  c.s === "♥" || c.s === "♦" ? "red" : ""
-                }">${c.v}${c.s}</div>`;
-              else dHtml += `<div class="card hidden"></div>`;
+        function joinGame() {
+            const name = document.getElementById('username').value.trim();
+            if(name) {
+                socket.emit('join', name);
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'flex';
             }
-          });
-
-          if (dealer.hand.length > 0)
-            dHtml += `<div style="margin-top:10px; color:#ffd700;">Điểm: ${dScoreDisplay}</div>`;
-          if (dealer.resultMsg && isDealer)
-            dHtml += `<div class="result-anim">${dealer.resultMsg}</div>`;
-          dHtml += `</div></div>`;
-          board.innerHTML += dHtml;
         }
 
-        // --- 2. RENDER BÀI NHÀ CON ---
-        let conHtml = `<div style="display: flex; flex-wrap: wrap; justify-content: space-around;">`;
-        for (let id in state.players) {
-          if (id === state.dealerId) continue;
-          let p = state.players[id];
-          let isMe = id === myId;
-
-          let pStatusTxt = "";
-          let pScoreDisplay = "?";
-          let isFullyRevealed = state.isRevealed || p.status === "checked";
-
-          if (isMe) {
-            let visibleHand = p.hand.filter((_, i) => myRevealedIndexes.has(i));
-            pScoreDisplay = getScore(visibleHand);
-            if (visibleHand.length < p.hand.length)
-              pStatusTxt =
-                '<span class="status-badge" style="background:#b8860b;">ĐANG NẶN...</span>';
-            else if (p.status === "bust")
-              pStatusTxt =
-                '<span class="status-badge" style="color:#f44336;">QUẮC</span>';
-            else if (p.status === "stand" || p.status === "checked")
-              pStatusTxt = '<span class="status-badge">ĐÃ DẰN</span>';
-          } else {
-            if (isFullyRevealed) {
-              pScoreDisplay = getScore(p.hand);
-              pStatusTxt =
-                p.status === "bust"
-                  ? '<span class="status-badge" style="color:#f44336;">QUẮC</span>'
-                  : '<span class="status-badge">ĐÃ DẰN</span>';
-            } else {
-              if (p.status === "bust" || p.status === "stand")
-                pStatusTxt = '<span class="status-badge">ĐÃ DẰN</span>';
+        // CHAT HỆ THỐNG
+        function sendChat() {
+            const inp = document.getElementById('chat-input');
+            if (inp.value.trim() !== '') {
+                socket.emit('send_chat', inp.value);
+                inp.value = '';
             }
-          }
-
-          let pProfitStr = p.profit > 0 ? `+${p.profit}k` : `${p.profit}k`;
-          let pColor =
-            p.profit > 0 ? "#4caf50" : p.profit < 0 ? "#f44336" : "#fff";
-
-          conHtml += `<div class="player-zone ${
-            isMe ? "is-me" : ""
-          }" style="width: 45%;">
-                    <div class="zone-header">${
-                      p.name
-                    } <span class="money-badge" style="color:${pColor}; border-color:${pColor};">${pProfitStr}</span><br>
-                    <span style="font-size:0.9rem; font-weight:normal;">Cược: ${
-                      p.bet
-                    }k</span> ${pStatusTxt}`;
-
-          if (
-            isDealer &&
-            state.isStarted &&
-            (p.status === "stand" || p.status === "bust") &&
-            dealerCanCheck
-          ) {
-            conHtml += `<br><button class="btn danger small" onclick="socket.emit('check_player', '${id}')">XÉT BÀI</button>`;
-          }
-          conHtml += `</div><div class="cards">`;
-
-          p.hand.forEach((c, i) => {
-            if (isMe && !isFullyRevealed) {
-              if (myRevealedIndexes.has(i))
-                conHtml += `<div class="card ${
-                  c.s === "♥" || c.s === "♦" ? "red" : ""
-                }">${c.v}${c.s}</div>`;
-              else
-                conHtml += `<div class="card squeezing-card" onclick="revealMyCard(${i})">NẶN</div>`;
-            } else if (isFullyRevealed || (isMe && isFullyRevealed)) {
-              conHtml += `<div class="card ${
-                c.s === "♥" || c.s === "♦" ? "red" : ""
-              }">${c.v}${c.s}</div>`;
-            } else {
-              conHtml += `<div class="card hidden"></div>`;
-            }
-          });
-
-          if (p.hand.length > 0)
-            conHtml += `<div style="margin-top:10px; color:#ffd700;">Điểm: ${pScoreDisplay}</div>`;
-          if (p.resultMsg)
-            conHtml += `<div class="result-anim">${p.resultMsg}</div>`;
-          conHtml += `</div></div>`;
         }
-        conHtml += `</div>`;
-        board.innerHTML += conHtml;
+        socket.on('receive_chat', (data) => {
+            const hist = document.getElementById('chat-history');
+            hist.innerHTML += `<div class="msg"><strong>${data.name}:</strong> ${data.text}</div>`;
+            hist.scrollTop = hist.scrollHeight;
+        });
 
-        // --- 3. RENDER NÚT ĐIỀU KHIỂN ---
-        let isMyCardsFullyRevealed = myRevealedIndexes.size >= me.hand.length;
+        // HÀM NẶN BÀI 
+        function revealMyCard(index) {
+            myRevealedIndexes.add(index);
+            renderBoard(window.lastGameState);
+        }
 
-        if (!state.dealerId) {
-          controls.innerHTML = `<button class="btn primary" onclick="socket.emit('take_dealer')">Làm Nhà Cái</button>`;
-        } else if (isDealer) {
-          if (!state.isStarted) {
-            controls.innerHTML = `<button class="btn primary" onclick="socket.emit('deal_cards')">Chia Bài</button>`;
-          } else {
-            controls.innerHTML = `
-                        <button class="btn success" onclick="socket.emit('hit')" ${
-                          !isMyCardsFullyRevealed ? "disabled" : ""
-                        }>Cái Rút Thêm</button>
-                        <button class="btn primary" onclick="socket.emit('reveal_all')" ${
-                          !dealerCanCheck || !isMyCardsFullyRevealed
-                            ? "disabled"
-                            : ""
-                        }>Xét Toàn Bàn</button>
-                        <br><br><button class="btn danger" onclick="socket.emit('reset_game')" style="margin-top: 10px;">Làm Mới Ván (Bắt đầu lại)</button>
+        socket.on('update_state', (state) => {
+            myId = socket.id;
+            window.lastGameState = state;
+            if (!state.isStarted) myRevealedIndexes = new Set([0, 1]);
+            renderBoard(state);
+        });
+
+        function renderBoard(state) {
+            const board = document.getElementById('board');
+            const controls = document.getElementById('controls-area');
+            board.innerHTML = ''; controls.innerHTML = '';
+
+            let me = state.players[myId];
+            if (!me) return;
+
+            const isDealer = (myId === state.dealerId);
+            let dealer = state.players[state.dealerId];
+            
+            // Tính số lượng cược (để cho phép chia bài)
+            let totalBets = 0;
+            for(let id in state.players) if (id !== state.dealerId && state.players[id].bet > 0) totalBets++;
+            
+            // --- 1. RENDER BÀI NHÀ CÁI ---
+            if (dealer) {
+                // Kiểm tra xem có đang tới lượt nhà cái không
+                let isDealerTurn = (state.currentTurnId === state.dealerId);
+                
+                let dHtml = `<div class="player-zone is-dealer ${isDealer ? 'is-me' : ''} ${isDealerTurn ? 'active-turn' : ''}">`;
+
+                let dProfitStr = dealer.profit > 0 ? `+${dealer.profit}k` : `${dealer.profit}k`;
+                let dColor = dealer.profit > 0 ? '#4caf50' : (dealer.profit < 0 ? '#f44336' : '#fff');
+
+                let turnInfo = isDealerTurn ? '<span class="status-badge" style="background:#4caf50; color:white;">TỚI LƯỢT</span>' : '';
+
+                dHtml += `<div class="zone-header">👑 NHÀ CÁI: ${dealer.name} <span class="money-badge" style="color:${dColor}; border-color:${dColor};">${dProfitStr}</span> ${turnInfo}</div><div class="cards">`;
+                
+                dealer.hand.forEach((c, i) => {
+                    if (isDealer) {
+                        if (myRevealedIndexes.has(i)) dHtml += `<div class="card ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}">${c.v}${c.s}</div>`;
+                        else dHtml += `<div class="card squeezing-card" onclick="revealMyCard(${i})">NẶN</div>`;
+                    } else {
+                        // HIỂN THỊ BÀI CÁI: Chỉ lật khi Xét Bài (dealerRevealed) hoặc Lật Toàn Bàn (isRevealed)
+                        if (state.dealerRevealed || state.isRevealed) dHtml += `<div class="card ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}">${c.v}${c.s}</div>`;
+                        else dHtml += `<div class="card hidden"></div>`;
+                    }
+                });
+                
+                // KHÔNG CÒN GHI ĐIỂM Ở ĐÂY NỮA (người chơi tự nhẩm)
+                if(dealer.resultMsg && isDealer) dHtml += `<div class="result-anim">${dealer.resultMsg}</div>`;
+                dHtml += `</div></div>`;
+                board.innerHTML += dHtml;
+            }
+
+            // --- 2. RENDER BÀI NHÀ CON ---
+            let conHtml = `<div style="display: flex; flex-wrap: wrap; justify-content: space-around;">`;
+            for (let id in state.players) {
+                if (id === state.dealerId) continue;
+                let p = state.players[id];
+                let isMe = (id === myId);
+                let isMyTurn = (state.currentTurnId === id);
+                
+                let pStatusTxt = '';
+                let isFullyRevealed = state.isRevealed || p.status === 'checked'; 
+
+                // Xử lý giấu Quắc: Nếu là mình tự biết, nếu là người khác chỉ thấy Đã Dằn
+                if (isFullyRevealed) {
+                    pStatusTxt = '<span class="status-badge">ĐÃ XÉT</span>';
+                } else if (p.status === 'stand' || p.status === 'checked') {
+                    pStatusTxt = '<span class="status-badge">ĐÃ DẰN</span>';
+                } else if (isMyTurn) {
+                    pStatusTxt = '<span class="status-badge" style="background:#4caf50; color:white;">TỚI LƯỢT</span>';
+                }
+
+                let pProfitStr = p.profit > 0 ? `+${p.profit}k` : `${p.profit}k`;
+                let pColor = p.profit > 0 ? '#4caf50' : (p.profit < 0 ? '#f44336' : '#fff');
+
+                conHtml += `<div class="player-zone ${isMe ? 'is-me' : ''} ${isMyTurn ? 'active-turn' : ''}" style="width: 45%;">
+                    <div class="zone-header">${p.name} <span class="money-badge" style="color:${pColor}; border-color:${pColor};">${pProfitStr}</span><br>
+                    <span style="font-size:0.9rem; font-weight:normal;">Cược: ${p.bet}k</span> ${pStatusTxt}`;
+                
+                // Nút Xét bài hiển thị khi tới lượt Cái VÀ con đã dằn
+                if (isDealer && state.currentTurnId === state.dealerId && p.status === 'stand') {
+                    conHtml += `<br><button class="btn danger small" onclick="socket.emit('check_player', '${id}')">XÉT BÀI</button>`;
+                }
+                conHtml += `</div><div class="cards">`;
+                
+                p.hand.forEach((c, i) => {
+                    if (isMe && !isFullyRevealed) {
+                        if (myRevealedIndexes.has(i)) conHtml += `<div class="card ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}">${c.v}${c.s}</div>`;
+                        else conHtml += `<div class="card squeezing-card" onclick="revealMyCard(${i})">NẶN</div>`;
+                    } else if (isFullyRevealed || (isMe && isFullyRevealed)) {
+                        conHtml += `<div class="card ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}">${c.v}${c.s}</div>`;
+                    } else {
+                        conHtml += `<div class="card hidden"></div>`;
+                    }
+                });
+                
+                // KHÔNG GHI ĐIỂM
+                if (p.resultMsg) conHtml += `<div class="result-anim">${p.resultMsg}</div>`;
+                conHtml += `</div></div>`;
+            }
+            conHtml += `</div>`;
+            board.innerHTML += conHtml;
+
+            // --- 3. RENDER NÚT ĐIỀU KHIỂN ---
+            let isMyTurn = (state.currentTurnId === myId);
+
+            if (!state.dealerId) {
+                controls.innerHTML = `<button class="btn primary" onclick="socket.emit('take_dealer')">Làm Nhà Cái</button>`;
+            } else if (isDealer) {
+                if (!state.isStarted) {
+                    controls.innerHTML = `<button class="btn primary" onclick="socket.emit('deal_cards')" ${totalBets === 0 ? 'disabled' : ''}>Chia Bài (${totalBets} tụ cược)</button>`;
+                } else if (isMyTurn) {
+                    // Tới lượt cái mới hiện nút. Tắt nút rút nếu đã lật bài
+                    let blockDealerHit = (state.isRevealed || state.dealerRevealed);
+                    controls.innerHTML = `
+                        <button class="btn success" onclick="socket.emit('hit')" ${blockDealerHit ? 'disabled' : ''}>Cái Rút Thêm</button>
+                        <button class="btn primary" onclick="socket.emit('reveal_all')">Xét Toàn Bàn</button>
+                        <br><br><button class="btn danger" onclick="socket.emit('reset_game')" style="margin-top: 10px;">Làm Mới Ván</button>
                     `;
-          }
-        } else {
-          if (!state.isStarted) {
-            if (me.bet === 0) {
-              controls.innerHTML = `
+                } else {
+                    controls.innerHTML = `<h3>Đang đợi các nhà con rút bài...</h3>
+                        <br><button class="btn danger" onclick="socket.emit('reset_game')">Hủy Ván Này</button>`;
+                }
+            } else { 
+                if (!state.isStarted) {
+                    if (me.bet === 0) {
+                        controls.innerHTML = `
                             <input type="number" id="bet-input" value="50" step="10" style="width: 100px; margin-right: 10px;">
                             <button class="btn primary" onclick="socket.emit('place_bet', document.getElementById('bet-input').value)">Đặt Cược</button>
                         `;
-            } else {
-              controls.innerHTML = `<h3 style="color: #4caf50;">Đã cược ${me.bet}k...</h3>`;
-            }
-          } else if (me.status === "playing") {
-            controls.innerHTML = `
-                        <button class="btn success" onclick="socket.emit('hit')" ${
-                          !isMyCardsFullyRevealed ? "disabled" : ""
-                        }>Rút Bài</button>
-                        <button class="btn danger" onclick="socket.emit('stand')" ${
-                          !isMyCardsFullyRevealed ? "disabled" : ""
-                        }>Dằn Bài</button>
+                    } else {
+                        controls.innerHTML = `<h3 style="color: #4caf50;">Đã cược ${me.bet}k...</h3>`;
+                    }
+                } else if (me.status === 'playing') {
+                    // Nếu là lượt của mình thì bật nút, không thì tắt
+                    controls.innerHTML = `
+                        <button class="btn success" onclick="socket.emit('hit')" ${!isMyTurn ? 'disabled' : ''}>Rút Bài</button>
+                        <button class="btn danger" onclick="socket.emit('stand')" ${!isMyTurn ? 'disabled' : ''}>Dằn Bài</button>
                     `;
-          } else {
-            controls.innerHTML = `<h3>Đợi nhà cái thao tác...</h3>`;
-          }
+                } else {
+                    controls.innerHTML = `<h3>Đợi nhà cái thao tác...</h3>`;
+                }
+            }
         }
-      }
     </script>
-  </body>
+</body>
 </html>
