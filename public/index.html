@@ -48,6 +48,21 @@
         .money-badge { color: #ffd700; margin-left: 5px; font-weight: bold; }
         .status-badge { background: #b8860b; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; color: #fff; display: block; margin-top: 3px;}
         
+        /* HOẠT ẢNH TIỀN BAY LÊN (MÀU XANH / ĐỎ) */
+        .result-anim { 
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 2.2rem; font-weight: 900; 
+            text-shadow: 0 0 15px #000; animation: floatUp 2.5s forwards; z-index: 20; pointer-events: none; white-space: nowrap;
+        }
+        .result-anim.win { color: #4caf50; } /* Thắng màu xanh lá */
+        .result-anim.lose { color: #f44336; } /* Thua màu đỏ */
+        
+        @keyframes floatUp { 
+            0% { opacity: 0; top: 30px; } 
+            15% { opacity: 1; top: -10px; } 
+            80% { opacity: 1; top: -30px; } 
+            100% { opacity: 0; top: -60px; } 
+        }
+
         .cards { display: flex; justify-content: center; min-height: 90px; padding-left: 20px; }
         .card { 
             width: 60px; height: 85px; background: white; border-radius: 6px; display: flex; flex-direction: column; 
@@ -195,7 +210,6 @@
         function getChipsHtml(betAmount) {
             if (betAmount <= 0) return '';
             let html = `<div class="bet-area"><div class="chips-stack">`;
-            
             const denoms = [500, 200, 100, 50, 20, 10, 5];
             let remaining = betAmount;
             let chipElements = [];
@@ -218,7 +232,6 @@
             renderBoard(window.lastGameState);
         }
 
-        // HÀM GỌI KHI NHÀ CÁI CHIA BÀI
         function startDeal() {
             let select = document.getElementById('deck-select');
             let numDecks = select ? parseInt(select.value) : 1;
@@ -263,7 +276,6 @@
             }
             if (state.dealerId) playerOrderArray.push(state.dealerId); 
 
-            // Xác định xem có cần ép 2 bộ bài không (từ 5 nhà con trở lên)
             let forceTwoDecks = totalBets >= 5;
 
             // --- 1. RENDER NHÀ CÁI ---
@@ -292,6 +304,13 @@
                         else dHtml += `<div class="card hidden ${animClass}" style="${animStyle}"></div>`;
                     }
                 });
+                
+                // MỚI: Thêm Animation Tiền Bay Lên cho Cái
+                if(dealer.resultMsg) {
+                    let animClass = dealer.resultMsg.includes('+') ? 'win' : 'lose';
+                    // Nếu là nhà cái hoặc cả bàn ngửa thì mới thấy text của Cái bay lên
+                    dHtml += `<div class="result-anim ${animClass}">${dealer.resultMsg}</div>`;
+                }
                 
                 dHtml += `</div></div>`;
                 dealerZone.innerHTML = dHtml;
@@ -341,6 +360,12 @@
                     }
                 });
                 
+                // MỚI: Thêm Animation Tiền Bay Lên cho Con
+                if (p.resultMsg) {
+                    let animClass = p.resultMsg.includes('+') ? 'win' : 'lose';
+                    pHtml += `<div class="result-anim ${animClass}">${p.resultMsg}</div>`;
+                }
+
                 pHtml += `</div></div>`;
                 playersZone.innerHTML += pHtml;
             }
@@ -353,7 +378,6 @@
                 controls.innerHTML = `<button class="btn primary" onclick="socket.emit('take_dealer')">Giành Quyền Làm Cái 👑</button>`;
             } else if (isDealer) {
                 if (!state.isStarted) {
-                    // MENU CHỌN BỘ BÀI DÀNH CHO NHÀ CÁI
                     controls.innerHTML = `
                         <div style="display: inline-block; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 10px; border: 1px solid #b8860b;">
                             <div style="margin-bottom: 10px;">
