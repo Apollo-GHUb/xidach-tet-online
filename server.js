@@ -13,16 +13,17 @@ let gameState = {
     dealerId: null,
     isStarted: false,
     isRevealed: false,
-    dealerRevealed: false, // Cái đã lật bài chưa
+    dealerRevealed: false, 
     deck: [],
-    turnOrder: [],       // Thứ tự rút bài
-    currentTurnId: null  // Lượt của ai hiện tại
+    turnOrder: [],       
+    currentTurnId: null,
+    currentDeckMode: 1 // Ghi nhận số bộ bài đang chơi để lỡ có cần check sau này
 };
 
-function buildDeck() {
+// Hàm tạo bộ bài nhận tham số số lượng bộ
+function buildDeck(numDecks = 1) {
     let deck = [];
-    // Dùng 2 bộ bài trộn lại để đủ chia cho sòng đông người (104 lá)
-    for (let d = 0; d < 2; d++) {
+    for (let d = 0; d < numDecks; d++) {
         for (let s of SUITS) for (let v of VALUES) deck.push({ v, s });
     }
     for (let i = deck.length - 1; i > 0; i--) {
@@ -52,7 +53,6 @@ function evaluateHand(hand) {
     return { rank: 2, name: 'Đủ Tẩy', score: score };
 }
 
-// Chuyển lượt cho người tiếp theo
 function nextTurn() {
     let currentIndex = gameState.turnOrder.indexOf(gameState.currentTurnId);
     if (currentIndex >= 0 && currentIndex < gameState.turnOrder.length - 1) {
@@ -82,18 +82,23 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('deal_cards', () => {
+    // MỚI: Nhận thông tin số lượng bộ bài từ giao diện của Nhà Cái
+    socket.on('deal_cards', (requestedDecks) => {
         if (socket.id === gameState.dealerId && !gameState.isStarted) {
-            // KIỂM TRA: Phải có ít nhất 1 nhà con cược tiền
             let playersWithBet = Object.keys(gameState.players).filter(id => id !== gameState.dealerId && gameState.players[id].bet > 0);
             if (playersWithBet.length === 0) return;
 
-            gameState.deck = buildDeck();
+            let totalPlayers = playersWithBet.length + 1; // Số nhà con + 1 nhà cái
+            
+            // LOGIC BẢO MẬT: Ép dùng 2 bộ bài nếu có từ 6 người trở lên (Dù nhà cái có cố tình hack gửi lên 1 bộ)
+            let finalDecks = (requestedDecks === 2 || totalPlayers >= 6) ? 2 : 1;
+
+            gameState.deck = buildDeck(finalDecks);
+            gameState.currentDeckMode = finalDecks;
             gameState.isStarted = true;
             gameState.isRevealed = false;
             gameState.dealerRevealed = false;
             
-            // Xếp vòng tròn: Các nhà con có cược rút trước, Cái rút cuối cùng
             gameState.turnOrder = [...playersWithBet, gameState.dealerId];
             gameState.currentTurnId = gameState.turnOrder[0];
 
@@ -110,38 +115,31 @@ io.on('connection', (socket) => {
     });
 
     socket.on('hit', () => {
-        // CÚ PHÁP VÒNG TRÒN: Chỉ người đang tới lượt mới được rút
         if (socket.id !== gameState.currentTurnId) return;
-        
-        // CÁI KHÔNG RÚT NỮA NẾU ĐÃ LẬT BÀI / XÉT BÀI
         if (socket.id === gameState.dealerId && (gameState.isRevealed || gameState.dealerRevealed)) return;
 
         let p = gameState.players[socket.id];
         if (p && p.status === 'playing' && p.hand.length < 5) {
-            // Nếu đã 21 điểm trở lên thì cấm rút, buộc phải tự bấm Dằn (để lừa nhà cái)
             if (calculateScore(p.hand) >= 21) return;
+            // Chống lỗi hết bài khi nọc rỗng (Dù đã chơi 2 bộ vẫn xui xẻo hết bài)
+            if (gameState.deck.length === 0) return; 
 
             p.hand.push(gameState.deck.pop());
-            // KHÔNG tự động chuyển trạng thái thành 'bust' (Quắc) ở đây để bảo mật thông tin.
-            // Người chơi tự đếm điểm, tự biết Quắc và PHẢI bấm nút "Dằn" để qua lượt.
             io.emit('update_state', gameState);
         }
     });
 
     socket.on('stand', () => {
-        // Chỉ người đang tới lượt mới được bấm Dằn
         if (socket.id !== gameState.currentTurnId) return;
-
         let p = gameState.players[socket.id];
         if (p && p.status === 'playing') {
-            p.status = 'stand'; // Bất kể quắc hay không, báo cho server là đã xong lượt
-            nextTurn(); // Chuyển lượt
+            p.status = 'stand'; 
+            nextTurn(); 
             io.emit('update_state', gameState);
         }
     });
 
     socket.on('check_player', (playerId) => {
-        // LƯỢT CỦA CÁI: Mới được xét
         if (socket.id !== gameState.dealerId || gameState.currentTurnId !== gameState.dealerId) return;
         
         let dealer = gameState.players[gameState.dealerId];
@@ -149,7 +147,6 @@ io.on('connection', (socket) => {
         
         if (!player || player.status !== 'stand' || player.status === 'checked') return;
 
-        // KHI XÉT BÀI AI ĐÓ -> LỘ BÀI NHÀ CÁI CHO CẢ BÀN
         gameState.dealerRevealed = true;
 
         let dEval = evaluateHand(dealer.hand);
@@ -180,12 +177,11 @@ io.on('connection', (socket) => {
     socket.on('reveal_all', () => {
         if (socket.id === gameState.dealerId) {
             gameState.isRevealed = true;
-            gameState.dealerRevealed = true; // Lộ toàn bộ bài
+            gameState.dealerRevealed = true; 
             io.emit('update_state', gameState);
         }
     });
 
-    // SERVER XỬ LÝ CHAT
     socket.on('send_chat', (msg) => {
         let p = gameState.players[socket.id];
         if (p && msg.trim() !== '') {
