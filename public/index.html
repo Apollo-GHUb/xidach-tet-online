@@ -75,13 +75,35 @@
             box-shadow: -3px 2px 5px rgba(0,0,0,0.4); border: 1px solid #ccc;
             margin-left: -35px; position: relative;
         }
-        /* Hiệu ứng mượt mà khi di chuột và khi bài bay xong */
-        .card:hover:not(.animate-from-deck) { transform: translateY(-10px); z-index: 10; transition: transform 0.2s; } 
+        
+        /* Chặn hover khi đang chạy Animation để không bị lỗi giật khung hình */
+        .card:hover:not(.animate-from-deck):not(.squeeze-reveal-anim) { 
+            transform: translateY(-10px); z-index: 10; transition: transform 0.2s; 
+        } 
+        
         .card.red { color: #d32f2f; }
         .card.hidden { background: repeating-linear-gradient(45deg, #1a237e, #1a237e 5px, #283593 5px, #283593 10px); color: transparent; border: 2px solid #fff; }
         .card.squeezing-card { background: radial-gradient(circle, #8b0000, #3e0000); color: #ffd700; font-size: 0.9rem; cursor: pointer; border: 2px dashed #ffd700; animation: pulseAndShake 1.2s infinite; }
         
         @keyframes pulseAndShake { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* MỚI: ANIMATION NẶN BÀI (SQUEEZE) TỪ TỪ LẤP LÓ */
+        .card.squeeze-reveal-anim {
+            animation: squeezePeek 3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards !important;
+            transform-origin: bottom left; /* Xoay bài từ góc dưới tay cầm */
+            z-index: 15;
+        }
+        @keyframes squeezePeek {
+            /* 0%: Giấu sát vào lá trước đó, tối màu */
+            0% { transform: translateX(-35px) translateY(0) rotate(0deg) scale(0.9); opacity: 0; }
+            10% { transform: translateX(-35px) translateY(0) rotate(0deg) scale(0.95); opacity: 1; filter: brightness(0.4); }
+            /* 40%: Kéo từ từ xéo lên trên, lấp ló số, sáng dần lên */
+            40% { transform: translateX(35px) translateY(-15px) rotate(15deg) scale(1.1); filter: brightness(1); }
+            /* 75%: Đứng yên 1 nhịp cho người chơi nhìn tim đập thình thịch */
+            75% { transform: translateX(35px) translateY(-15px) rotate(15deg) scale(1.1); }
+            /* 100%: Lật xong, xếp gọn gàng vào hàng */
+            100% { transform: translateX(0) translateY(0) rotate(0deg) scale(1); opacity: 1; }
+        }
 
         .bet-area { position: absolute; bottom: -25px; right: -25px; display: flex; flex-direction: column; align-items: center; z-index: 2;}
         .chips-stack { display: flex; flex-direction: column; align-items: center; animation: dropChip 0.4s ease-out; }
@@ -161,7 +183,8 @@
         let isChatOpen = false;
         let isDealingMode = false;
         let lastStarted = false;
-        window.newlyDrawn = {}; // Biến theo dõi những lá bài vừa mới được bốc
+        window.newlyDrawn = {}; 
+        window.justSqueezed = null; // MỚI: Biến theo dõi bài đang được nặn
 
         function joinGame() {
             const name = document.getElementById('username').value.trim();
@@ -231,9 +254,16 @@
             return score;
         }
 
+        // MỚI: CẬP NHẬT HÀM NẶN BÀI 
         function revealMyCard(index) {
+            window.justSqueezed = index; // Ghi nhớ lá bài vừa mới nặn
             myRevealedIndexes.add(index);
             renderBoard(window.lastGameState);
+            
+            // Xóa trạng thái nặn bài sau khi animation chạy xong (3 giây)
+            setTimeout(() => {
+                if (window.justSqueezed === index) window.justSqueezed = null;
+            }, 3000); 
         }
 
         function startDeal() {
@@ -242,7 +272,6 @@
             socket.emit('deal_cards', numDecks);
         }
 
-        // HÀM XỬ LÝ ANIMATION BÀI BAY TỪ BỘ NỌC ĐẾN TAY NGƯỜI CHƠI
         function executeFlyAnimations() {
             let deckEl = document.getElementById('deck-center');
             if (!deckEl || deckEl.style.display === 'none') return;
@@ -256,35 +285,30 @@
                 let cardX = cardRect.left + cardRect.width / 2;
                 let cardY = cardRect.top + cardRect.height / 2;
 
-                // Tính toán khoảng cách (Vector) từ bộ bài đến vị trí thực tế của lá bài
                 let deltaX = deckX - cardX;
                 let deltaY = deckY - cardY;
                 
                 let delay = parseFloat(card.getAttribute('data-delay') || 0) * 1000;
 
-                // Set trạng thái ban đầu: Bài nằm ở giữa nọc, tàng hình và thu nhỏ
                 card.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(0.2) rotate(180deg)`;
                 card.style.opacity = '0';
                 card.style.transition = 'none';
 
-                // Ép trình duyệt nhận diện trạng thái vừa set trước khi chạy Animation
                 void card.offsetWidth;
 
-                // Bắt đầu bay
                 setTimeout(() => {
                     card.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-out';
                     card.style.transform = 'translate(0, 0) scale(1) rotate(0deg)';
                     card.style.opacity = '1';
                 }, delay + 20); 
 
-                card.classList.remove('animate-from-deck'); // Chỉ bay 1 lần
+                card.classList.remove('animate-from-deck'); 
             });
         }
 
         socket.on('update_state', (state) => {
             myId = socket.id;
             
-            // LOGIC KIỂM TRA BÀI MỚI RÚT (So sánh với state cũ)
             window.newlyDrawn = {};
             if (window.lastGameState && state.isStarted && !isDealingMode) {
                 for (let id in state.players) {
@@ -293,7 +317,7 @@
                     if (newHand.length > oldHand.length) {
                         window.newlyDrawn[id] = [];
                         for(let i = oldHand.length; i < newHand.length; i++) {
-                            window.newlyDrawn[id].push(i); // Đánh dấu các index bài mới bốc
+                            window.newlyDrawn[id].push(i); 
                         }
                     }
                 }
@@ -354,11 +378,22 @@
                 dealer.hand.forEach((c, i) => {
                     let isJustDrawn = window.newlyDrawn[state.dealerId] && window.newlyDrawn[state.dealerId].includes(i);
                     let isDealing = (isDealingMode && i < 2);
+                    let isSqueezing = (isDealer && window.justSqueezed === i);
+                    
                     let animDelay = isDealing ? ((i * numP) + p_idx) * 0.15 : 0;
                     
-                    let animClass = (isDealing || isJustDrawn) ? 'animate-from-deck' : '';
-                    let delayAttr = animDelay > 0 ? `data-delay="${animDelay}"` : '';
-                    let animStyle = (isDealing || isJustDrawn) ? `opacity: 0;` : '';
+                    // Ưu tiên class Animation
+                    let animClass = '';
+                    let animStyle = '';
+                    let delayAttr = '';
+
+                    if (isSqueezing) {
+                        animClass = 'squeeze-reveal-anim';
+                    } else if (isDealing || isJustDrawn) {
+                        animClass = 'animate-from-deck';
+                        animStyle = `opacity: 0;`;
+                        if (animDelay > 0) delayAttr = `data-delay="${animDelay}"`;
+                    }
 
                     if (isDealer) {
                         if (myRevealedIndexes.has(i)) dHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
@@ -410,11 +445,21 @@
                 p.hand.forEach((c, i) => {
                     let isJustDrawn = window.newlyDrawn[id] && window.newlyDrawn[id].includes(i);
                     let isDealing = (isDealingMode && i < 2 && p.bet > 0);
+                    let isSqueezing = (isMe && window.justSqueezed === i);
+                    
                     let animDelay = isDealing ? ((i * numP) + p_idx) * 0.15 : 0;
                     
-                    let animClass = (isDealing || isJustDrawn) ? 'animate-from-deck' : '';
-                    let delayAttr = animDelay > 0 ? `data-delay="${animDelay}"` : '';
-                    let animStyle = (isDealing || isJustDrawn) ? `opacity: 0;` : '';
+                    let animClass = '';
+                    let animStyle = '';
+                    let delayAttr = '';
+
+                    if (isSqueezing) {
+                        animClass = 'squeeze-reveal-anim';
+                    } else if (isDealing || isJustDrawn) {
+                        animClass = 'animate-from-deck';
+                        animStyle = `opacity: 0;`;
+                        if (animDelay > 0) delayAttr = `data-delay="${animDelay}"`;
+                    }
 
                     if (isMe && !isFullyRevealed) {
                         if (myRevealedIndexes.has(i)) pHtml += `<div class="card ${animClass} ${(c.s === '♥' || c.s === '♦') ? 'red' : ''}" style="${animStyle}" ${delayAttr}>${c.v}${c.s}</div>`;
@@ -435,7 +480,6 @@
                 playersZone.innerHTML += pHtml;
             }
 
-            // --- 3. RENDER NÚT ĐIỀU KHIỂN ---
             let isMyTurn = (state.currentTurnId === myId);
             let isMyCardsFullyRevealed = me && me.hand && (myRevealedIndexes.size >= me.hand.length);
 
@@ -489,7 +533,6 @@
                 }
             }
 
-            // SAU KHI VẼ XONG HTML, GỌI HÀM KÍCH HOẠT ANIMATION BÀI BAY
             executeFlyAnimations();
         }
     </script>
