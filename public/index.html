@@ -48,13 +48,14 @@
         .money-badge { color: #ffd700; margin-left: 5px; font-weight: bold; }
         .status-badge { background: #b8860b; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; color: #fff; display: block; margin-top: 3px;}
         
-        /* HOẠT ẢNH TIỀN BAY LÊN (MÀU XANH / ĐỎ) */
+        /* HOẠT ẢNH TIỀN BAY LÊN / CHỮ HÒA */
         .result-anim { 
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 2.2rem; font-weight: 900; 
             text-shadow: 0 0 15px #000; animation: floatUp 2.5s forwards; z-index: 20; pointer-events: none; white-space: nowrap;
         }
-        .result-anim.win { color: #4caf50; } /* Thắng màu xanh lá */
-        .result-anim.lose { color: #f44336; } /* Thua màu đỏ */
+        .result-anim.win { color: #4caf50; } 
+        .result-anim.lose { color: #f44336; } 
+        .result-anim.tie { color: #ffd700; } /* HÒA màu Vàng */
         
         @keyframes floatUp { 
             0% { opacity: 0; top: 30px; } 
@@ -305,11 +306,10 @@
                     }
                 });
                 
-                // MỚI: Thêm Animation Tiền Bay Lên cho Cái
+                // Hiển thị kết quả (Thắng/Thua/Hòa)
                 if(dealer.resultMsg) {
-                    let animClass = dealer.resultMsg.includes('+') ? 'win' : 'lose';
-                    // Nếu là nhà cái hoặc cả bàn ngửa thì mới thấy text của Cái bay lên
-                    dHtml += `<div class="result-anim ${animClass}">${dealer.resultMsg}</div>`;
+                    let resClass = dealer.resultMsg.includes('+') ? 'win' : (dealer.resultMsg.includes('-') ? 'lose' : 'tie');
+                    dHtml += `<div class="result-anim ${resClass}">${dealer.resultMsg}</div>`;
                 }
                 
                 dHtml += `</div></div>`;
@@ -360,10 +360,10 @@
                     }
                 });
                 
-                // MỚI: Thêm Animation Tiền Bay Lên cho Con
+                // Hiển thị kết quả (Thắng/Thua/Hòa)
                 if (p.resultMsg) {
-                    let animClass = p.resultMsg.includes('+') ? 'win' : 'lose';
-                    pHtml += `<div class="result-anim ${animClass}">${p.resultMsg}</div>`;
+                    let resClass = p.resultMsg.includes('+') ? 'win' : (p.resultMsg.includes('-') ? 'lose' : 'tie');
+                    pHtml += `<div class="result-anim ${resClass}">${p.resultMsg}</div>`;
                 }
 
                 pHtml += `</div></div>`;
@@ -404,8 +404,9 @@
             } else { 
                 if (!state.isStarted) {
                     if (me.bet === 0) {
+                        // GIỚI HẠN CƯỢC: Tối thiểu 5k, Tối đa 1000k (1 triệu)
                         controls.innerHTML = `
-                            <input type="number" id="bet-input" value="50" step="10" min="5" style="width: 120px; margin-right: 10px; padding: 10px; border-radius: 5px;">
+                            <input type="number" id="bet-input" value="50" step="10" min="5" max="1000" style="width: 120px; margin-right: 10px; padding: 10px; border-radius: 5px;">
                             <button class="btn primary" onclick="socket.emit('place_bet', document.getElementById('bet-input').value)">Chồng Tiền Cược</button>
                         `;
                     } else {
